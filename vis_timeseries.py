@@ -51,6 +51,7 @@ class Main(QtWidgets.QMainWindow):
         
         (self._dataTimeSeries_ax, self._optode_ax) = self.plots.figure.subplots(1, 2, width_ratios=[2,1])
         self._optode_ax.axis('off')
+        self._dataTimeSeries_ax.grid("True",axis="y")
         window_layout.addWidget(NavigationToolbar(self.plots,self),stretch=1)
         window_layout.addWidget(self.plots, stretch=8)
         
@@ -77,7 +78,7 @@ class Main(QtWidgets.QMainWindow):
         ## Aux Selector
         self.auxs = QtWidgets.QComboBox()
         self.auxs.addItems(["None"])
-        # self.auxs.currentTextChanged.connect(self.aux_changed) # Connect! <<<<<<<<<<<<<<<
+        self.auxs.currentTextChanged.connect(self.aux_changed) # Connect! <<<<<<<<<<<<<<<
         aux_layout.addWidget(QtWidgets.QLabel("Aux:"), 0,0)
         aux_layout.addWidget(self.auxs, 0,1)
         
@@ -88,6 +89,7 @@ class Main(QtWidgets.QMainWindow):
         validator.setRange(0,100)
         validator.setDecimals(3)
         self.aux_window.setValidator(validator)
+        self.aux_window.textChanged.connect(self.aux_rect)
         aux_layout.addWidget(QtWidgets.QLabel("Aux window:"), 1,0)
         aux_layout.addWidget(self.aux_window, 1,1)
         
@@ -106,19 +108,7 @@ class Main(QtWidgets.QMainWindow):
         wv_layout.addWidget(self.wv, 0,1)
         
         
-        # # Create Channel Controls Layout
-        # chan_layout = QtWidgets.QHBoxLayout()
-        # chan_layout.setAlignment(QtCore.Qt.AlignTop)
-        # control_panel_layout.addLayout(chan_layout)
-        
-        # ## Create channel selectors
-        # self.chans_sel = QtWidgets.QListWidget()
-        # self.chans_sel.setFixedHeight(45)
-        # # self.chans_sel.currentTextChanged.connect(self.chans_changed) # Connect!
-        # chan_layout.addWidget(QtWidgets.QLabel("Channels:"))
-        # chan_layout.addWidget(self.chans_sel)
-        
-        ## Create Opt2Circ Button
+        # Create Opt2Circ Button
         self.opt2circ = QtWidgets.QCheckBox("View optodes as circles")
         self.opt2circ.stateChanged.connect(self._toggle_circles)
         control_panel_layout.addWidget(self.opt2circ)
@@ -160,6 +150,8 @@ class Main(QtWidgets.QMainWindow):
         self.snirfObj = cedalion.io.read_snirf(self._fname)
         t1 = time.time()
         self.statbar.showMessage(f'File Loaded in {t1 - t0:.2f} seconds!')
+        self.auxs.setCurrentIndex(0)
+        self.aux_window.setText('0')
         self.init_calc()
         
     def init_calc(self):
@@ -203,6 +195,8 @@ class Main(QtWidgets.QMainWindow):
         self.src_label = [0]*len(self.sx)
         self.det_label = [0]*len(self.dx)
         self.selected = []
+        self.aux_sel = []
+        self.aux_rect_width = 0
         
         # Create aux channels
         for i_a, aux_type in enumerate(self.snirfObj[0].aux.keys()):
@@ -350,10 +344,48 @@ class Main(QtWidgets.QMainWindow):
         self._optode_ax.figure.canvas.draw()
         
         # Plot timeseries
-        self.timeSeries = self._dataTimeSeries_ax.plot(self.t, self.snirfData[chan_sel_idx,wvl_idx].T,ls=wvl_ls[wvl_idx])
+        self.timeSeries = self._dataTimeSeries_ax.plot(self.t, self.snirfData[chan_sel_idx,wvl_idx].T,ls=wvl_ls[wvl_idx],zorder=5)
+        
+        # Plot lines or rectangles of aux
+        if len(self.aux_sel) != 0:
+            aux_on = np.append(0,self.aux_sel[self.aux_sel == 1].time.values)
+            aux_ondiff = np.array([aux_on[i+1] - aux_on[i] > 1 for i in range(len(aux_on) - 1)])
+            aux_ondiff = np.append([False],aux_ondiff)
+            aux_marks = aux_on[aux_ondiff] + 1
+            
+            if self.aux_rect_width == 0:
+                for rx in aux_marks:
+                    self._dataTimeSeries_ax.axvline(rx,c="k",lw=1,zorder=0)
+            else:
+                ry = max(self.snirfData[chan_sel_idx,wvl_idx].values.ravel())
+                for rx in aux_marks:
+                    rx2 = rx + self.aux_rect_width
+                    self._dataTimeSeries_ax.fill(
+                                                 [rx, rx, rx2, rx2],
+                                                 [0, ry, ry, 0],
+                                                 color=[0.7,0.7,0.7,0.4],
+                                                 zorder=0,
+                                                 )
+        
         self._dataTimeSeries_ax.figure.canvas.draw()
-
-
+    
+    def aux_changed(self,s):
+        if s == 'None':
+            return
+        
+        if s == 'dark signal':
+            return
+        elif s == 'digital':
+            self.aux_sel = self.snirfObj[0].aux[s]
+        else:
+            return
+            
+        self.draw_timeseries()
+        
+    def aux_rect(self,s):
+        self.aux_rect_width = float(s)
+        
+        self.draw_timeseries()
     
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
