@@ -156,9 +156,8 @@ class Main(QtWidgets.QMainWindow):
         
     def init_calc(self):
         # Extract necessary data
-        # print(self.snirfObj)
-        self.snirfData = self.snirfObj[0].data[0]
-        self.measList = self.snirfObj[0].measurement_lists[0]
+        self.snirfData = self.snirfObj[0].timeseries['amp']
+        self.measList = self.snirfObj[0]._measurement_lists['amp']
         
         self.sPos = self.snirfObj[0].geo2d.sel(label = ["S" in str(s.values) for s in self.snirfObj[0].geo2d.label])
         self.dPos = self.snirfObj[0].geo2d.sel(label = ["D" in str(s.values) for s in self.snirfObj[0].geo2d.label])
@@ -199,7 +198,7 @@ class Main(QtWidgets.QMainWindow):
         self.aux_rect_width = 0
         
         # Create aux channels
-        for i_a, aux_type in enumerate(self.snirfObj[0].aux.keys()):
+        for i_a, aux_type in enumerate(self.snirfObj[0].aux_ts.keys()):
             self.auxs.insertItem(i_a+1, aux_type)
             
         # Wavelength picker
@@ -376,7 +375,7 @@ class Main(QtWidgets.QMainWindow):
         if s == 'dark signal':
             return
         elif s == 'digital':
-            self.aux_sel = self.snirfObj[0].aux[s]
+            self.aux_sel = self.snirfObj[0].aux_ts[s]
         else:
             return
             
